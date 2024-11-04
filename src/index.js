@@ -129,16 +129,20 @@
 
                 /* Variables */
                 self.options = options;
-                self.keys = [self.KEY_ENTER, self.KEY_COMMA, self.KEY_ESCAPE];
+                self.inputKeys = [self.KEY_COMMA];
+                self.keys = [self.KEY_COMMA, self.KEY_ENTER, self.KEY_ESCAPE];
                 self.tags = [];
+                self.insertOnBlur = self.options.insertOnBlur === true;
+                self.isEdition = false;
 
-                if (self.options.keys.length > 0) {
-                    self.keys = self.keys.concat(self.options.keys);
+                if (self.options.inputKeys?.length > 0){
+                    self.keys.shift();
+                    self.keys = self.keys.concat(self.options.inputKeys);
+                    self.inputKeys = self.options.inputKeys;
                 }
 
                 self.init = function () {
                     self.addClass(self.ELEMENT_CLASS).attr('data-uniqid', self.UNIQID);
-
                     self.$element = $('.' + self.ELEMENT_CLASS);
                     self.$element.hide();
 
@@ -150,6 +154,17 @@
                     self.destroy();
                     self._autocomplete._init();
                     self._focus();
+
+                    if (self.insertOnBlur){
+                        self.$input.on('blur', function () {
+                            let value = self.$input.val().trim();
+                            if (!self.isEdition && value){
+                                self._insertTag('', value);
+                            }
+
+                            self.isEdition = false;
+                        });
+                    }
                 };
 
                 /**
@@ -244,62 +259,7 @@
                             return false;
                         }
 
-                        value = self.KEY_COMMA === key ? value.slice(0, -1) : value;
-
-                        if (!self._validate(value, true)) {
-                            return false;
-                        }
-
-                        if (self.options.only && self._exists(value)) {
-                            self._errors('exists');
-
-                            return false;
-                        }
-
-                        if (self.$input.hasClass('is-edit')) {
-                            var old_value = self.$input.attr('data-old-value');
-
-                            if (old_value === value) {
-                                self._cancel();
-                                return true;
-                            }
-
-                            self._update(old_value, value);
-                            self._clean();
-                            self._fill();
-                        } else {
-                            if (self._autocomplete._isSet() && self._autocomplete._get('only')) {
-                                if ($.inArray(value, self._autocomplete._get('values')) < 0) {
-                                    self._autocomplete._hide();
-                                    self._errors('autocomplete_only');
-                                    return false;
-                                }
-                            }
-
-                            if (self._exists(value)) {
-                                self.$input.removeClass('is-autocomplete');
-                                self._errors('exists');
-
-                                var $tag = $('[data-tag="' + value + '"]', self.$list);
-
-                                $tag.addClass('is-exists');
-
-                                setTimeout(function () {
-                                    $tag.removeClass('is-exists');
-                                }, 300);
-                                return false;
-                            }
-
-                            self._buildItem(value);
-                            self._insert(value);
-                        }
-
-                        self._cancel();
-                        self._updateValue();
-                        self.destroy();
-                        self._autocomplete._build();
-
-                        self._setInstance(self);
+                        self._insertTag(key, value);
 
                         self.$input.focus();
 
@@ -326,6 +286,7 @@
 
                         self._bindEvent('selected');
 
+                        self.isEdition = true;
                         self.$input.on('blur', function () {
                             self._cancel();
                             self._bindEvent('unselected');
@@ -860,6 +821,70 @@
                     return self._initEvent(method, function (m) {
                         self.options[m] = false;
                     });
+                };
+
+                self._insertTag = function(key, value){
+                    value = self.inputKeys.includes(key) ?
+                            (key == ' ' ? value: value.slice(0, -1)) : value;
+
+                    if (!value) return false;
+
+                    if (!self._validate(value, true)) {
+                        return false;
+                    }
+
+                    if (self.options.only && self._exists(value)) {
+                        self._errors('exists');
+
+                        return false;
+                    }
+
+                    if (self.$input.hasClass('is-edit')) {
+                        var old_value = self.$input.attr('data-old-value');
+
+                        if (old_value === value) {
+                            self._cancel();
+                            return true;
+                        }
+
+                        self._update(old_value, value);
+                        self._clean();
+                        self._fill();
+                    } else {
+                        if (self._autocomplete._isSet() && self._autocomplete._get('only')) {
+                            if ($.inArray(value, self._autocomplete._get('values')) < 0) {
+                                self._autocomplete._hide();
+                                self._errors('autocomplete_only');
+                                return false;
+                            }
+                        }
+
+                        if (self._exists(value)) {
+                            self.$input.removeClass('is-autocomplete');
+                            self._errors('exists');
+
+                            var $tag = $('[data-tag="' + value + '"]', self.$list);
+
+                            $tag.addClass('is-exists');
+
+                            setTimeout(function () {
+                                $tag.removeClass('is-exists');
+                            }, 300);
+                            return false;
+                        }
+
+                        self._buildItem(value);
+                        self._insert(value);
+                    }
+
+                    self._cancel();
+                    self._updateValue();
+                    self.destroy();
+                    self._autocomplete._build();
+
+                    self._setInstance(self);
+
+                    return true;
                 };
 
                 self.init();
